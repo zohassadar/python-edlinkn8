@@ -13,6 +13,8 @@ STATE_LENGTH = 0x100
 ACK_BLOCK_SIZE = 1024
 
 CMD_STATUS = 0x10
+CMD_F_FOPN = 0xC9
+CMD_F_FRD = 0xCA
 ADDR_SSR = 0x1802000
 ADDR_FIFO = 0x1810000
 CMD_MEM_RD = 0x19
@@ -138,24 +140,17 @@ class Everdrive:
     def write_fifo(self, data: bytearray):
         self.memory_write(ADDR_FIFO, data)
 
+    def transmit_string(self, message):
+        length = bytearray(len(message).to_bytes(2, "little"))
+        data = bytearray([ord(c) for c in message])
+        self.write_fifo(length)
+        self.write_fifo(data)
 
-
-        # void txString(string str)
-        # {
-        #     byte[] bytes = Encoding.ASCII.GetBytes(str);
-        #     UInt16 str_len = (UInt16)bytes.Length;
-        #     edio.fifoWR(BitConverter.GetBytes(str_len), 0, 2);
-        #     edio.fifoWR(bytes, 0, bytes.Length);
-        # }
-
-
-        # void cmd(char cmd)
-        # {
-        #     byte[] buff = new byte[2];
-        #     buff[0] = (byte)'*';
-        #     buff[1] = (byte)cmd;
-        #     edio.fifoWR(buff, 0, buff.Length);
-        # }
+    def command(self, command):
+        data = bytearray(2)
+        data[0] = ord("*")
+        data[1] = command
+        self.write_fifo(data)
 
 
     #    public void loadGame_old(NesRom rom, string map_path)
@@ -216,23 +211,17 @@ class Everdrive:
         # }
 
 
+    def check_status(self):
+        response = self.get_status()
+        if response:
+            raise RuntimeError(f"Operation error: {response:02x}")
 
-        # void checkStatus()
-        # {
-        #     int resp = getStatus();
-        #     if (resp != 0) throw new Exception("operation error: " + resp.ToString("X2"));
-        # }
-
-        # public int getStatus()
-        # {
-        #     int resp;
-        #     txCMD(CMD_STATUS);
-        #     resp = rx16();
-        #     if ((resp & 0xff00) != 0xA500) throw new Exception("unexpected status response (" + resp.ToString("X4") + ")");
-        #     return resp & 0xff;
-        # }
-
-
+    def get_status(self):
+        self.transmit_command(CMD_STATUS)
+        response = self.receive_16()
+        if (response & 0xff00) != 0xA500:
+            raise RuntimeError(f"Unexpected response: {response:04x}")
+        return response & 0xff
 
 
         # void txDataACK(byte[] buff, int offset, int len)
@@ -283,7 +272,6 @@ class Everdrive:
         # }
 
 
-
         # public void fileOpen(string path, int mode)
         # {
         #     txCMD(CMD_F_FOPN);
@@ -302,36 +290,22 @@ class Everdrive:
 
 
 
-
-
-        # public void fileRead(byte[] buff, int offset, int len)
-        # {
-
-        #     txCMD(CMD_F_FRD);
-        #     tx32(len);
-
-
-        #     while (len > 0)
-        #     {
-        #         int block = 4096;
-        #         if (block > len) block = len;
-        #         int resp = rx8();
-        #         if (resp != 0) throw new Exception("file read error: " + resp.ToString("X2"));
-
-        #         rxData(buff,  offset, block);
-        #         offset += block;
-        #         len -= block;
-
-        #     }
-
-        # }
-
-
-
-
-
-
-
+    def read_file(self, length: int) -> bytearray:
+        self.transmit_command(CMD_F_FRD)
+        self.transmit_32(length)
+        data = bytearray(length)
+        offset = 0
+        while length > 0:
+            block = 4096
+            if block > length:
+                block = length
+            response = self.receive_8()
+            if response:
+                raise Exception(f"File read error: {response:02x}")
+            data[offset:offset+block] = self.receive_data(block)
+            offset += block
+            length -= block
+        return data
 
 
 
