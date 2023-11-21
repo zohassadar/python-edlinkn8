@@ -1,3 +1,7 @@
+"""
+Thanks to Krikzz
+https://github.com/krikzz/EDN8-PRO
+"""
 
 from __future__ import annotations
 import argparse
