@@ -40,11 +40,11 @@ ADDR_FIFO = 0x1810000
 BAUD_RATE = 115200
 IDENTIFIER = "EverDrive N8"
 
-CMD_TEST = ord('t')
-CMD_REBOOT = ord('r')
-CMD_HALT = ord('h')
-CMD_SEL_GAME = ord('n')
-CMD_RUN_GAME = ord('s')
+CMD_TEST = ord("t")
+CMD_REBOOT = ord("r")
+CMD_HALT = ord("h")
+CMD_SEL_GAME = ord("n")
+CMD_RUN_GAME = ord("s")
 
 
 if os.name == "posix":
@@ -54,8 +54,10 @@ elif os.name == "nt":
 else:
     raise ImportError("Unsupported os: {os.name}")
 
+
 def to_string(data: bytearray):
-    return '-'.join(f'{e:02x}'.upper() for e in data)
+    return "-".join(f"{e:02x}".upper() for e in data)
+
 
 class FileInfo:
     name: str
@@ -75,7 +77,7 @@ class Everdrive:
             logger.debug(f"Found {port.device}: {port.description}")
             if port.description == IDENTIFIER:
                 logger.info(f"Everdrive found on {port.device}")
-                self.port = Serial(port=port.device, baudrate=BAUD_RATE,timeout=2)
+                self.port = Serial(port=port.device, baudrate=BAUD_RATE, timeout=2)
                 return
         raise RuntimeError(f"Unable to locate everdrive")
 
@@ -92,7 +94,7 @@ class Everdrive:
             block = BLOCK_SIZE
             if block > length:
                 block = length
-            chunk = data[offset:offset+block]
+            chunk = data[offset : offset + block]
             self.port.write(chunk)
             length -= block
             offset += block
@@ -105,18 +107,14 @@ class Everdrive:
 
     def transmit_command(self, command: int):
         cmd = bytearray(4)
-        cmd[0] = ord('+')
-        cmd[1] = ord('+') ^ 0xFF
+        cmd[0] = ord("+")
+        cmd[1] = ord("+") ^ 0xFF
         cmd[2] = command
         cmd[3] = command ^ 0xFF
         self.transmit_data(cmd)
         logger.debug(f"Transmitting command: {cmd.hex()}")
 
-    def memory_read(
-        self,
-        address: int,
-        length: int
-    ):
+    def memory_read(self, address: int, length: int):
         logger.debug(f"Reading {length} from 0x{address:08x}")
         self.transmit_command(CMD_MEM_RD)
         self.transmit_32(address)
@@ -132,35 +130,35 @@ class Everdrive:
         self.transmit_32(length)
         self.transmit_8(0)
         self.transmit_data(data)
-    
+
     def receive_8(self):
         result = self.receive_data(1).pop()
         logger.debug(f"receive_8: {result:02x}")
         return result
-    
+
     def receive_16(self):
         result = self.receive_data(2)
         result = result[1] << 8 | result[0]
         logger.debug(f"receive_16: {result:04x}")
         return result
-    
+
     def receive_32(self):
         result = self.receive_data(4)
         result = result[0] | (result[1] << 8) | (result[2] << 16) | (result[3] << 24)
         logger.debug(f"receive_16: {result:08x}")
         return result
-    
+
     def transmit_32(self, data: int):
         logger.debug(f"transmit_32: {data:08x}")
         self.transmit_data(bytearray(data.to_bytes(length=4, byteorder="little")))
-    
+
     def transmit_16(self, data: int):
         logger.debug(f"transmit_16: {data:04x}")
         self.transmit_data(bytearray(data.to_bytes(length=2, byteorder="little")))
 
     def transmit_8(self, data: int):
         logger.debug(f"transmit_8 {data:02x}")
-        self.transmit_data(bytearray([data & 0xff]))
+        self.transmit_data(bytearray([data & 0xFF]))
 
     def print_state(self):
         state = self.memory_read(
@@ -191,7 +189,7 @@ class Everdrive:
         data = bytearray(2)
         data[0] = ord("*")
         data[1] = command
-        logger.debug(f"command: {data.hex()}") 
+        logger.debug(f"command: {data.hex()}")
         self.write_fifo(data)
 
     def load_game(self, rom: NesRom):
@@ -209,10 +207,8 @@ class Everdrive:
         self.write_fifo(rom_id)
         logger.debug(f"Received: {self.receive_8()}")
 
-
         logger.debug(f"getting 2 bytes for map_idx")
         map_idx = self.receive_16()
-
 
         logger.debug(f"Running the game:  {map_idx}")
         self.command(CMD_RUN_GAME)
@@ -225,12 +221,11 @@ class Everdrive:
         """
         Unused.  Setup as a test while troubleshooting.
         """
-        fpg = bytearray(open('004.RBF', 'rb').read())
+        fpg = bytearray(open("004.RBF", "rb").read())
         self.transmit_command(CMD_FPG_USB)
         self.transmit_32(len(fpg))
         self.transmit_data_ack(fpg)
         self.check_status()
-
 
     def file_info(self, path: str):
         logger.info(f"Requesting file info")
@@ -275,10 +270,9 @@ class Everdrive:
     def get_status(self):
         self.transmit_command(CMD_STATUS)
         response = self.receive_16()
-        if (response & 0xff00) != 0xA500:
+        if (response & 0xFF00) != 0xA500:
             raise RuntimeError(f"Unexpected response: {response:04x}")
-        return response & 0xff
-
+        return response & 0xFF
 
     def transmit_data_ack(self, data):
         """
@@ -293,10 +287,9 @@ class Everdrive:
             block = ACK_BLOCK_SIZE
             if block > length:
                 block = length
-            self.transmit_data(data[offset:offset+block])
+            self.transmit_data(data[offset : offset + block])
             length -= block
             offset += block
-
 
     def map_load_sdc(self, map_id: int):
         map_path = "EDN8/MAPS/"
@@ -309,11 +302,11 @@ class Everdrive:
             map_path += "0"
         if map_pkg < 10:
             map_path += "0"
-        map_path = f'{map_path}{map_pkg}.RBF'
+        map_path = f"{map_path}{map_pkg}.RBF"
         logger.debug(f"int mapper: {map_path}")
         # self.fpg_init(map_path)
         self.fpg_init_direct()
-        
+
     def open_file(self, path: str, mode: int):
         logger.debug(f"Opening: {path}")
         self.transmit_command(CMD_F_FOPN)
@@ -342,7 +335,7 @@ class Everdrive:
             response = self.receive_8()
             if response:
                 raise Exception(f"File read error: {response:02x}")
-            data[offset:offset+block] = self.receive_data(block)
+            data[offset : offset + block] = self.receive_data(block)
             offset += block
             length -= block
         return data
@@ -350,10 +343,10 @@ class Everdrive:
 
 class NesRom:
     ROM_TYPE_NES = 0
-    MIR_HOR = 'H'
-    MIR_VER = 'V'
-    MIR_4SC = '4'
-    MIR_1SC = '1'
+    MIR_HOR = "H"
+    MIR_VER = "V"
+    MIR_4SC = "4"
+    MIR_1SC = "1"
     MAX_ID_CALC_LEN = 0x100000
     ADDR_PRG = 0x0000000
     ADDR_CHR = 0x0800000
@@ -364,7 +357,7 @@ class NesRom:
         self.rom = rom
         self.size = len(self.rom)
         self.ines = self.rom[:32]
-        self.nes = self.ines[0:3] == bytearray(b'NES')
+        self.nes = self.ines[0:3] == bytearray(b"NES")
         if not self.nes:
             raise RuntimeError(f"This script only supports nes: {self.ines[0:3]}")
         self.dat_base = 16
@@ -373,16 +366,16 @@ class NesRom:
         self.srm_size = 8192
         if not self.prg_size:
             self.prg_size = 0x400000
-        self.mapper = (self.rom[6] >> 4) | (self.rom[7] & 0xf0)
+        self.mapper = (self.rom[6] >> 4) | (self.rom[7] & 0xF0)
         self.mirroring = self.MIR_VER if self.rom[6] & 1 else self.MIR_HOR
         self.bat_ram = bool((self.rom[6] & 2))
         if self.rom[6] & 8:
             self.mirroring = self.MIR_4SC
-        self.crc = zlib.crc32(self.rom[self.dat_base:])
+        self.crc = zlib.crc32(self.rom[self.dat_base :])
         if self.mapper == 255:
             raise RuntimeError(f"OS mapper not yet supported")
-        self.prg = self.rom[16:16+self.prg_size]
-        self.chr = self.rom[16+self.prg_size:16+self.prg_size+self.chr_size]
+        self.prg = self.rom[16 : 16 + self.prg_size]
+        self.chr = self.rom[16 + self.prg_size : 16 + self.prg_size + self.chr_size]
 
         logger.debug(f"{self.mapper=}")
         logger.debug(f"{self.prg_size=}")
@@ -395,17 +388,17 @@ class NesRom:
     @classmethod
     def from_file(cls, file):
         name = pathlib.Path(file).name
-        rom = bytearray(bytes(open(file, 'rb').read()))
+        rom = bytearray(bytes(open(file, "rb").read()))
         return cls(rom=rom, name=name)
 
     def get_rom_id(self):
-        logger.debug('Getting rom ID')
+        logger.debug("Getting rom ID")
         offset = len(self.ines)
         data = bytearray(offset + 12)
         data[:offset] = self.ines
-        data[offset:offset+4] = bytearray(self.size.to_bytes(4, "little"))
-        data[offset+4:offset+8] = bytearray(self.crc.to_bytes(4, "little"))
-        data[offset+8:] = bytearray((16).to_bytes(4, "little"))
+        data[offset : offset + 4] = bytearray(self.size.to_bytes(4, "little"))
+        data[offset + 4 : offset + 8] = bytearray(self.crc.to_bytes(4, "little"))
+        data[offset + 8 :] = bytearray((16).to_bytes(4, "little"))
         return data
 
 
@@ -417,15 +410,17 @@ def apply_ips_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> bytear
         print(f"{patch_file} doesn't look like a patch", file=sys.stderr)
         sys.exit(1)
     while ptr < len(patch):
-        offset = int.from_bytes(patch[ptr:ptr+3], "big")
-        size = int.from_bytes(patch[ptr+3:ptr+5], "big")
+        offset = int.from_bytes(patch[ptr : ptr + 3], "big")
+        size = int.from_bytes(patch[ptr + 3 : ptr + 5], "big")
         ptr += 5
         if size:
-            rom[offset:offset+size] = patch[ptr:ptr+size]
+            rom[offset : offset + size] = patch[ptr : ptr + size]
             ptr += size
         else:
-            data = patch[ptr+2:ptr+3] * int.from_bytes(patch[ptr:ptr+2], "big")
-            rom[offset:offset+len(data)] = data
+            data = patch[ptr + 2 : ptr + 3] * int.from_bytes(
+                patch[ptr : ptr + 2], "big"
+            )
+            rom[offset : offset + len(data)] = data
             ptr += 3
         if patch[ptr:] == b"EOF":
             ptr += 3
@@ -439,9 +434,9 @@ def apply_ips_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> bytear
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('rom', nargs="?", help="Load this rom")
-    parser.add_argument('-p', '--patch', help="Apply .ips patch to rom first")
-    parser.add_argument('-s', '--sha1sum', help="sha1sum to validate patch", default="")
+    parser.add_argument("rom", nargs="?", help="Load this rom")
+    parser.add_argument("-p", "--patch", help="Apply .ips patch to rom first")
+    parser.add_argument("-s", "--sha1sum", help="sha1sum to validate patch", default="")
     args = parser.parse_args()
     everdrive = Everdrive()
     if args.patch:
