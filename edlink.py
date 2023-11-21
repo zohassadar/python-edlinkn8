@@ -1,42 +1,44 @@
 from __future__ import annotations
-import os
+import argparse
 import logging
+import os
 import pathlib
-import re
+import sys
 import zlib
 
 from serial import Serial
 
-# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 STATE_LENGTH = 0x100
 
+BLOCK_SIZE = 8192
 ACK_BLOCK_SIZE = 1024
+
 FAT_READ = 0x01
 
 CMD_STATUS = 0x10
-CMD_F_FOPN = 0xC9
-CMD_F_FCLOSE = 0xCE
-CMD_F_FINFO = 0xD0
-CMD_F_FRD = 0xCA
-CMD_FPG_SDC = 0x1F
-ADDR_SSR = 0x1802000
-ADDR_FIFO = 0x1810000
 CMD_MEM_RD = 0x19
 CMD_MEM_WR = 0x1A
 CMD_FPG_USB = 0x1E
+CMD_FPG_SDC = 0x1F
+CMD_F_FOPN = 0xC9
+CMD_F_FRD = 0xCA
+CMD_F_FCLOSE = 0xCE
+CMD_F_FINFO = 0xD0
+
+ADDR_SSR = 0x1802000
+ADDR_FIFO = 0x1810000
 
 BAUD_RATE = 115200
 IDENTIFIER = "EverDrive N8"
-
 
 CMD_TEST = ord('t')
 CMD_REBOOT = ord('r')
 CMD_HALT = ord('h')
 CMD_SEL_GAME = ord('n')
 CMD_RUN_GAME = ord('s')
-
 
 
 if os.name == "posix":
@@ -48,8 +50,6 @@ else:
 
 def to_string(data: bytearray):
     return '-'.join(f'{e:02x}'.upper() for e in data)
-
-
 
 class FileInfo:
     name: str
@@ -81,8 +81,7 @@ class Everdrive:
     ):
         if not length:
             length = len(data)
-        BLOCK_SIZE = 1024
-        logger.info(f"Transmitting {len(data)}: {data[:48].hex()}")
+        logger.debug(f"Transmitting {len(data)}: {data[:48].hex()}")
         while length > 0:
             block = BLOCK_SIZE
             if block > length:
@@ -95,7 +94,7 @@ class Everdrive:
     def receive_data(self, length: int) -> bytearray:
         data = self.port.read(length)
         data = bytearray(data)
-        logger.info(f"Received {len(data)}: {data[:48].hex()}")
+        logger.debug(f"Received {len(data)}: {data[:48].hex()}")
         return data
 
     def transmit_command(self, command: int):
@@ -105,14 +104,14 @@ class Everdrive:
         cmd[2] = command
         cmd[3] = command ^ 0xFF
         self.transmit_data(cmd)
-        logger.info(f"Transmitting command: {cmd.hex()}")
+        logger.debug(f"Transmitting command: {cmd.hex()}")
 
     def memory_read(
         self,
         address: int,
         length: int
     ):
-        logger.info(f"Reading: {length} from 0x{address:08x}")
+        logger.debug(f"Reading {length} from 0x{address:08x}")
         self.transmit_command(CMD_MEM_RD)
         self.transmit_32(address)
         self.transmit_32(length)
@@ -121,7 +120,7 @@ class Everdrive:
 
     def memory_write(self, address: int, data: bytearray):
         length = len(data)
-        logger.info(f"Writing {length} to {address:08x}")
+        logger.debug(f"Writing {length} to {address:08x}")
         self.transmit_command(CMD_MEM_WR)
         self.transmit_32(address)
         self.transmit_32(length)
@@ -130,31 +129,31 @@ class Everdrive:
     
     def receive_8(self):
         result = self.receive_data(1).pop()
-        logger.info(f"receive_8: {result:02x}")
+        logger.debug(f"receive_8: {result:02x}")
         return result
     
     def receive_16(self):
         result = self.receive_data(2)
         result = result[1] << 8 | result[0]
-        logger.info(f"receive_16: {result:04x}")
+        logger.debug(f"receive_16: {result:04x}")
         return result
     
     def receive_32(self):
         result = self.receive_data(4)
         result = result[0] | (result[1] << 8) | (result[2] << 16) | (result[3] << 24)
-        logger.info(f"receive_16: {result:08x}")
+        logger.debug(f"receive_16: {result:08x}")
         return result
     
     def transmit_32(self, data: int):
-        logger.debug(f"Sending 32 bits: 0x{data:08x}")
+        logger.debug(f"transmit_32: {data:08x}")
         self.transmit_data(bytearray(data.to_bytes(length=4, byteorder="little")))
     
     def transmit_16(self, data: int):
-        logger.debug(f"Sending 16 bits: 0x{data:04x}")
+        logger.debug(f"transmit_16: {data:04x}")
         self.transmit_data(bytearray(data.to_bytes(length=2, byteorder="little")))
 
     def transmit_8(self, data: int):
-        logger.debug(f"Sending byte: 0x{data:02x}")
+        logger.debug(f"transmit_8 {data:02x}")
         self.transmit_data(bytearray([data & 0xff]))
 
     def print_state(self):
@@ -171,48 +170,47 @@ class Everdrive:
     def transmit_string_fifo(self, message: str):
         length = bytearray(len(message).to_bytes(2, "little"))
         data = bytearray(message.encode())
-        logger.info(f"string fifo: {length.hex()} {data.hex()}")
+        logger.debug(f"string fifo: {length.hex()} {data.hex()}")
         self.write_fifo(length)
         self.write_fifo(data)
 
     def transmit_string(self, message: str):
         length = bytearray(len(message).to_bytes(2, "little"))
         data = bytearray(message.encode())
-        logger.info(f"string: {length.hex()} {data.hex()}")
+        logger.debug(f"string: {length.hex()} {data.hex()}")
         self.transmit_data(length)
         self.transmit_data(data)
-
 
     def command(self, command):
         data = bytearray(2)
         data[0] = ord("*")
         data[1] = command
-        logger.info(f"command: {data.hex()}") 
+        logger.debug(f"command: {data.hex()}") 
         self.write_fifo(data)
 
     def load_game(self, rom: NesRom):
-        logger.info(f"Sending command to select game")
+        logger.debug(f"Sending command to select game")
         self.command(CMD_SEL_GAME)
 
         rom_name = f"USB:{rom.name}"
         self.transmit_string_fifo(rom_name)
-        logger.info(f"Received: {self.receive_8()}")
+        logger.debug(f"Received: {self.receive_8()}")
 
-        logger.info(f"writing rom id to fifo")
+        logger.debug(f"writing rom id to fifo")
         rom_id = rom.get_rom_id()
 
-        logger.info(f"rom id: {'-'.join(f'{b:02x}'.upper() for b in rom_id)}")
+        logger.debug(f"rom id: {'-'.join(f'{b:02x}'.upper() for b in rom_id)}")
         self.write_fifo(rom_id)
-        logger.info(f"Received: {self.receive_8()}")
+        logger.debug(f"Received: {self.receive_8()}")
 
 
-        logger.info(f"getting 2 bytes for map_idx")
+        logger.debug(f"getting 2 bytes for map_idx")
         map_idx = self.receive_16()
 
 
-        logger.info(f"Running the game:  {map_idx}")
+        logger.debug(f"Running the game:  {map_idx}")
         self.command(CMD_RUN_GAME)
-        logger.info(f"Received: {self.receive_8()}")
+        logger.debug(f"Received: {self.receive_8()}")
         self.memory_write(rom.ADDR_PRG, rom.prg)
         self.memory_write(rom.ADDR_CHR, rom.chr)
         self.map_load_sdc(map_idx)
@@ -252,15 +250,15 @@ class Everdrive:
 
     def fpg_init(self, path: str):
         logger.info(f"Initializing FPG: {path}")
-        # fileinfo = self.file_info(path)
+        fileinfo = self.file_info(path)
         self.open_file(path, FAT_READ)
         self.transmit_command(CMD_FPG_SDC)
-        self.transmit_32(129536)
+        self.transmit_32(fileinfo.size)
         self.transmit_8(0)
         self.check_status()
 
     def check_status(self):
-        logger.info(f"Checking Status")
+        logger.debug(f"Checking Status")
         response = self.get_status()
         if response:
             raise RuntimeError(f"Operation error: {response:02x}")
@@ -289,12 +287,9 @@ class Everdrive:
 
 
     def map_load_sdc(self, map_id: int):
-        logger.debug('YO WE ARE TRYING TO MAP LOAD SDC')
         map_path = "EDN8/MAPS/"
         self.open_file("EDN8/MAPROUT.BIN", FAT_READ)
-        logger.info(f"Opened file in map_load_sdc")
         map_data = self.read_file(4096)
-        logger.info(f"read data in map_load_sdc")
         self.close_file()
 
         map_pkg = map_data[map_id]
@@ -303,17 +298,18 @@ class Everdrive:
         if map_pkg < 10:
             map_path += "0"
         map_path = f'{map_path}{map_pkg}.RBF'
-        logger.info(f"int mapper: {map_path}")
-        self.fpg_init(map_path)
+        logger.debug(f"int mapper: {map_path}")
+        # self.fpg_init(map_path)
+        self.fpg_init_direct()
         
     def open_file(self, path: str, mode: int):
-        logger.info(f"Opening: {path}")
+        logger.debug(f"Opening: {path}")
         self.transmit_command(CMD_F_FOPN)
-        logger.info(f"File open command: {CMD_F_FOPN}")
+        logger.debug(f"File open command: {CMD_F_FOPN}")
         self.transmit_8(mode)
-        logger.info(f"File open mode: {mode}")
+        logger.debug(f"File open mode: {mode}")
         self.transmit_string(path)
-        logger.info(f"File open path: {path}")
+        logger.debug(f"File open path: {path}")
         self.check_status()
 
     def close_file(self):
@@ -378,13 +374,13 @@ class NesRom:
         self.prg = self.rom[16:16+self.prg_size]
         self.chr = self.rom[16+self.prg_size:16+self.prg_size+self.chr_size]
 
-        logger.info(f"{self.mapper=}")
-        logger.info(f"{self.prg_size=}")
-        logger.info(f"{self.chr_size=}")
-        logger.info(f"{self.srm_size=}")
-        logger.info(f"{self.mirroring=}")
-        logger.info(f"{self.bat_ram=}")
-        logger.info(f"{self.crc=:08x}")
+        logger.debug(f"{self.mapper=}")
+        logger.debug(f"{self.prg_size=}")
+        logger.debug(f"{self.chr_size=}")
+        logger.debug(f"{self.srm_size=}")
+        logger.debug(f"{self.mirroring=}")
+        logger.debug(f"{self.bat_ram=}")
+        logger.debug(f"{self.crc=:08x}")
 
     @property
     def name(self):
@@ -400,6 +396,19 @@ class NesRom:
         data[offset+8:] = bytearray((16).to_bytes(4, "little"))
         return data
 
-e = Everdrive()
-r = NesRom('../TetrisGYM/clean.nes')
-e.load_game(r)
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('rom', nargs="?", help="Load this rom")
+    parser.add_argument('-p', '--patch', help="Apply .ips patch to rom first")
+    args = parser.parse_args()
+    everdrive = Everdrive()
+    if args.patch:
+        sys.exit("Patching not yet supported")
+    if args.rom:
+        rom = NesRom(args.rom)
+        everdrive.load_game(rom)
+        sys.exit(0)
+    everdrive.print_state()
