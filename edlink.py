@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 import argparse
 import hashlib
@@ -217,6 +218,9 @@ class Everdrive:
         self.map_load_sdc(map_idx)
 
     def fpg_init_direct(self):
+        """
+        Unused.  Setup as a test while troubleshooting.
+        """
         fpg = bytearray(open('004.RBF', 'rb').read())
         self.transmit_command(CMD_FPG_USB)
         self.transmit_32(len(fpg))
@@ -273,6 +277,9 @@ class Everdrive:
 
 
     def transmit_data_ack(self, data):
+        """
+        unused.  set up along fpg_init_direct
+        """
         length = len(data)
         offset = 0
         while length > 0:
