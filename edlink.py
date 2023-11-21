@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse
+import hashlib
 import logging
 import os
 import pathlib
@@ -346,17 +347,15 @@ class NesRom:
     ADDR_PRG = 0x0000000
     ADDR_CHR = 0x0800000
 
-    def __init__(self, path):
+    def __init__(self, rom: bytearray, name: str):
         self.rom_type = self.ROM_TYPE_NES
-        if not (path):
-            raise RuntimeError(f'No ROM specified')
-        self.path = path
-        self.rom = bytearray(bytes(open(path, 'rb').read()))
+        self.name = name
+        self.rom = rom
         self.size = len(self.rom)
         self.ines = self.rom[:32]
         self.nes = self.ines[0:3] == bytearray(b'NES')
         if not self.nes:
-            raise RuntimeError(f"This script only supports nes")
+            raise RuntimeError(f"This script only supports nes: {self.ines[0:3]}")
         self.dat_base = 16
         self.prg_size = self.rom[4] * 1024 * 16
         self.chr_size = self.rom[5] * 1024 * 8
@@ -382,9 +381,11 @@ class NesRom:
         logger.debug(f"{self.bat_ram=}")
         logger.debug(f"{self.crc=:08x}")
 
-    @property
-    def name(self):
-        return pathlib.Path(self.path).name
+    @classmethod
+    def from_file(cls, file):
+        name = pathlib.Path(file).name
+        rom = bytearray(bytes(open(file, 'rb').read()))
+        return cls(rom=rom, name=name)
 
     def get_rom_id(self):
         logger.debug('Getting rom ID')
@@ -397,18 +398,49 @@ class NesRom:
         return data
 
 
+def apply_ips_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> bytearray:
+    rom = bytearray(open(rom_file, "rb").read())
+    patch = open(patch_file, "rb").read()
+    header, patch = patch[:5], patch[5:]
+    if header != b"PATCH":
+        print(f"{patch_file} doesn't look like a patch", file=sys.stderr)
+        sys.exit(1)
+    while True:
+        if patch == b"EOF" or not patch:
+            break
+        offsetb, sizeb, patch = patch[:3], patch[3:5], patch[5:]
+        offset = int.from_bytes(offsetb, byteorder="big")
+        size = int.from_bytes(sizeb, byteorder="big")
+        if not size:
+            length, value, patch = patch[:2], patch[2:3], patch[3:]
+            length = int.from_bytes(length, byteorder="big")
+            data = value * length
+            rom[offset:offset+len(data)] = data
+        else:
+            data, patch = patch[:size], patch[size:]
+            rom[offset:offset+len(data)] = data
+    if sha1sum and (new_sha1sum := hashlib.sha1(rom).digest().hex()) != sha1sum.lower():
+        print(f"Invalid sha1sum: {new_sha1sum}", file=sys.stderr)
+        sys.exit(1)
+    elif sha1sum:
+        print("Valid sha1sum")
+    return rom
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('rom', nargs="?", help="Load this rom")
     parser.add_argument('-p', '--patch', help="Apply .ips patch to rom first")
+    parser.add_argument('-s', '--sha1sum', help="sha1sum to validate patch", default="")
     args = parser.parse_args()
     everdrive = Everdrive()
     if args.patch:
-        sys.exit("Patching not yet supported")
+        rom = apply_ips_patch(args.rom, args.patch, args.sha1sum)
+        rom = NesRom(rom=rom, name=args.patch.replace(".ips", ".nes"))
+        everdrive.load_game(rom)
+        sys.exit(0)
     if args.rom:
-        rom = NesRom(args.rom)
+        rom = NesRom.from_file(args.rom)
         everdrive.load_game(rom)
         sys.exit(0)
     everdrive.print_state()
