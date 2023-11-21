@@ -412,24 +412,23 @@ class NesRom:
 def apply_ips_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> bytearray:
     rom = bytearray(open(rom_file, "rb").read())
     patch = open(patch_file, "rb").read()
-    header, patch = patch[:5], patch[5:]
-    if header != b"PATCH":
+    ptr = 5
+    if patch[:ptr] != b"PATCH":
         print(f"{patch_file} doesn't look like a patch", file=sys.stderr)
         sys.exit(1)
-    while True:
-        if patch == b"EOF" or not patch:
-            break
-        offsetb, sizeb, patch = patch[:3], patch[3:5], patch[5:]
-        offset = int.from_bytes(offsetb, byteorder="big")
-        size = int.from_bytes(sizeb, byteorder="big")
-        if not size:
-            length, value, patch = patch[:2], patch[2:3], patch[3:]
-            length = int.from_bytes(length, byteorder="big")
-            data = value * length
-            rom[offset:offset+len(data)] = data
+    while ptr < len(patch):
+        offset = int.from_bytes(patch[ptr:ptr+3], "big")
+        size = int.from_bytes(patch[ptr+3:ptr+5], "big")
+        ptr += 5
+        if size:
+            rom[offset:offset+size] = patch[ptr:ptr+size]
+            ptr += size
         else:
-            data, patch = patch[:size], patch[size:]
+            data = patch[ptr+2:ptr+3] * int.from_bytes(patch[ptr:ptr+2], "big")
             rom[offset:offset+len(data)] = data
+            ptr += 3
+        if patch[ptr:] == b"EOF":
+            ptr += 3
     if sha1sum and (new_sha1sum := hashlib.sha1(rom).digest().hex()) != sha1sum.lower():
         print(f"Invalid sha1sum: {new_sha1sum}", file=sys.stderr)
         sys.exit(1)
