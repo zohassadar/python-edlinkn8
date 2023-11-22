@@ -304,8 +304,7 @@ class Everdrive:
             map_path += "0"
         map_path = f"{map_path}{map_pkg}.RBF"
         logger.debug(f"int mapper: {map_path}")
-        # self.fpg_init(map_path)
-        self.fpg_init_direct()
+        self.fpg_init(map_path)
 
     def open_file(self, path: str, mode: int):
         logger.debug(f"Opening: {path}")
