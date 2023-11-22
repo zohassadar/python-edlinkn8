@@ -77,7 +77,7 @@ class Everdrive:
             logger.debug(f"Found {port.device}: {port.description}")
             if port.description == IDENTIFIER:
                 logger.info(f"Everdrive found on {port.device}")
-                self.port = Serial(port=port.device, baudrate=BAUD_RATE, timeout=2)
+                self.port = Serial(port=port.device, baudrate=BAUD_RATE, timeout=.5)
                 return
         raise RuntimeError(f"Unable to locate everdrive")
 
@@ -431,21 +431,34 @@ def apply_ips_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> bytear
         print("Valid sha1sum")
     return rom
 
+def count_bytes(everdrive: Everdrive):
+    counter = 0
+    while True:
+        byte_ = everdrive.receive_data(1)
+        if not byte_:
+            break
+        counter += 1
+    print(counter)
+
+def send_fifo(everdrive: Everdrive, *numbers):
+    payload = bytearray(n & 0xff for n in numbers)
+    everdrive.write_fifo(payload)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("rom", nargs="?", help="Load this rom")
     parser.add_argument("-p", "--patch", help="Apply .ips patch to rom first")
     parser.add_argument("-s", "--sha1sum", help="sha1sum to validate patch", default="")
+    parser.add_argument("-S", "--print-state", action="store_true")
     args = parser.parse_args()
     everdrive = Everdrive()
     if args.patch:
         rom = apply_ips_patch(args.rom, args.patch, args.sha1sum)
         rom = NesRom(rom=rom, name=args.patch.replace(".ips", ".nes"))
         everdrive.load_game(rom)
-        sys.exit(0)
-    if args.rom:
+    elif args.rom:
         rom = NesRom.from_file(args.rom)
         everdrive.load_game(rom)
-        sys.exit(0)
-    everdrive.print_state()
+    elif args.print_state:
+        everdrive.print_state()
