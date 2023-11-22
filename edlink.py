@@ -553,6 +553,7 @@ if __name__ == "__main__":
         rom = NesRom.from_file(args.rom)
         everdrive.load_game(rom)
     elif args.test:
+        print("Launching fifo test rom")
         rom = get_test_rom()
         rom = NesRom(rom=rom, name="fifo_testrom.nes")
         everdrive.load_game(rom)
