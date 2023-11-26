@@ -59,6 +59,31 @@ else:
     raise ImportError("Unsupported os: {os.name}")
 
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("rom", nargs="?", help="Load this rom")
+    parser.add_argument("-p", "--patch", help="Apply .ips patch to rom first")
+    parser.add_argument("-t", "--test", action="store_true", help="Launch test rom")
+    parser.add_argument("-s", "--sha1sum", help="sha1sum to validate patch", default="")
+    parser.add_argument("-S", "--print-state", action="store_true")
+    args = parser.parse_args()
+    everdrive = Everdrive()
+    if args.patch:
+        rom = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
+        rom = NesRom(rom=rom, name=args.patch.replace(".ips", ".nes"))
+        everdrive.load_game(rom)
+    elif args.rom:
+        rom = NesRom.from_file(args.rom)
+        everdrive.load_game(rom)
+    elif args.test:
+        print("Launching fifo test rom")
+        rom = get_test_rom()
+        rom = NesRom(rom=rom, name="fifo_testrom.nes")
+        everdrive.load_game(rom)
+    elif args.print_state:
+        everdrive.print_state()
+
+
 def to_string(data: bytearray):
     return "-".join(f"{e:02x}".upper() for e in data)
 
@@ -537,25 +562,4 @@ fifo_testrom = (
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("rom", nargs="?", help="Load this rom")
-    parser.add_argument("-p", "--patch", help="Apply .ips patch to rom first")
-    parser.add_argument("-t", "--test", action="store_true", help="Launch test rom")
-    parser.add_argument("-s", "--sha1sum", help="sha1sum to validate patch", default="")
-    parser.add_argument("-S", "--print-state", action="store_true")
-    args = parser.parse_args()
-    everdrive = Everdrive()
-    if args.patch:
-        rom = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
-        rom = NesRom(rom=rom, name=args.patch.replace(".ips", ".nes"))
-        everdrive.load_game(rom)
-    elif args.rom:
-        rom = NesRom.from_file(args.rom)
-        everdrive.load_game(rom)
-    elif args.test:
-        print("Launching fifo test rom")
-        rom = get_test_rom()
-        rom = NesRom(rom=rom, name="fifo_testrom.nes")
-        everdrive.load_game(rom)
-    elif args.print_state:
-        everdrive.print_state()
+    main()
