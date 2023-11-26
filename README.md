@@ -6,10 +6,10 @@ This provides some functionality of the edlink-n8 portion of [krikzz/EDN8-PRO](h
 
 The install portion is preferably done while in an active virtual environment.  
 
-    git clone https://github.com/zohassadar/python-edlink/
-    cd python-edlink
+    git clone https://github.com/zohassadar/python-edlinkn8
+    cd python-edlinkn8
     pip install .
 
 # Use
 
-    edlink -h
+    edlinkn8 -h
