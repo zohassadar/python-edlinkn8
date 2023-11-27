@@ -8,7 +8,8 @@ The install portion is preferably done while in an active virtual environment.
 
     git clone https://github.com/zohassadar/python-edlinkn8
     cd python-edlinkn8
-    pip install .
+    pip install -r requirements.txt
+    pip install -e .
 
 # Use
 
