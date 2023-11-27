@@ -16,7 +16,7 @@ import zlib
 from serial import Serial
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 TEST_ROM_LEN = 40976
 TEST_ROM_SHA1SUM = "ea914304489deade0a3ef598b4a7e5dc0d558c59"
