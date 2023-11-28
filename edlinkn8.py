@@ -6,7 +6,10 @@ https://github.com/krikzz/EDN8-PRO
 from __future__ import annotations
 import argparse
 import base64
+import binascii
+import enum
 import hashlib
+import io
 import logging
 import os
 import pathlib
@@ -484,6 +487,7 @@ def send_fifo(everdrive: Everdrive, *numbers):
     payload = bytearray(n & 0xFF for n in numbers)
     everdrive.write_fifo(payload)
 
+
 TEST_ROM_LEN = 40976
 
 fifo_testrom = (
@@ -522,9 +526,6 @@ fifo_testrom = (
 BPS Code from https://github.com/mgius/python-bpspatcher
 
 """
-import binascii
-import enum
-import io
 
 ENDIAN = "little"
 
@@ -544,13 +545,13 @@ def read_number_io(b: io.BytesIO) -> int:
     data, shift = 0, 1
 
     # this was basically directly copied from the bps_spec
-    while(True):
+    while True:
         x = b.read(1)
         if len(x) == 0:
             return None
         x = convert_uint(x)
-        data += (x & 0x7f) * shift
-        if (x & 0x80):
+        data += (x & 0x7F) * shift
+        if x & 0x80:
             break
         shift <<= 7
         data += shift
@@ -559,7 +560,7 @@ def read_number_io(b: io.BytesIO) -> int:
 
 
 def read_number(b: bytes) -> tuple:
-    """ Read a number that starts at the beginning of the bytes
+    """Read a number that starts at the beginning of the bytes
 
     returns a tuple of the number read and remaining bytes
     """
@@ -582,9 +583,9 @@ class BPSPatch(object):
         if header != self.MAGIC_HEADER:
             raise InvalidPatch(f"Magic header {header} is incorrect")
 
-        self.source_checksum = convert_uint(patch[-4*3:-4*2])
-        self.target_checksum = convert_uint(patch[-4*2:-4*1])
-        self.patch_checksum = convert_uint(patch[-4*1:])
+        self.source_checksum = convert_uint(patch[-4 * 3 : -4 * 2])
+        self.target_checksum = convert_uint(patch[-4 * 2 : -4 * 1])
+        self.patch_checksum = convert_uint(patch[-4 * 1 :])
 
         calculated_checksum = binascii.crc32(patch[:-4])
 
@@ -600,22 +601,24 @@ class BPSPatch(object):
         self.target_size, remainder = read_number(remainder)
         self.metadata_size, remainder = read_number(remainder)
 
-        self.metadata = remainder[:self.metadata_size].decode("UTF-8")
+        self.metadata = remainder[: self.metadata_size].decode("UTF-8")
 
         # actions is everything else other than the header and footer
-        self.actions = remainder[self.metadata_size:-12]
+        self.actions = remainder[self.metadata_size : -12]
 
     def patch_rom(self, source: bytes) -> bytes:
         if len(source) != self.source_size:
             raise InvalidPatch(
                 f"source size {len(source)} does not match "
-                f"expected {self.source_size}")
+                f"expected {self.source_size}"
+            )
 
         source_checksum = binascii.crc32(source)
         if source_checksum != self.source_checksum:
             raise InvalidPatch(
                 f"source checksum {source_checksum} does not match "
-                f"expected {self.source_checksum}")
+                f"expected {self.source_checksum}"
+            )
 
         target = bytearray(self.target_size)
 
@@ -625,7 +628,7 @@ class BPSPatch(object):
         source_relative_offset = 0
         target_relative_offset = 0
 
-        while(True):
+        while True:
             action = read_number_io(actions)
             if action is None:
                 break
@@ -633,18 +636,19 @@ class BPSPatch(object):
             command = action & 3
             length = (action >> 2) + 1
 
-            print(f"Command {command}, length {length}")
+            # Modified from original
+            logger.debug(f"BPS Command {command}, length {length}")
 
             if command == Action.SourceRead:
                 # consume some number of bytes from source file
-                target[output_offset:output_offset + length] = \
-                    source[output_offset:output_offset + length]
+                target[output_offset : output_offset + length] = source[
+                    output_offset : output_offset + length
+                ]
                 output_offset += length
 
             elif command == Action.TargetRead:
                 # consume some number of bytes from patch file
-                target[output_offset:output_offset + length] = \
-                    actions.read(length)
+                target[output_offset : output_offset + length] = actions.read(length)
                 output_offset += length
 
             elif command == Action.SourceCopy:
@@ -652,9 +656,9 @@ class BPSPatch(object):
                 # somewhere else.  This action seems unnecessarily complicated
                 data = read_number_io(actions)
                 source_relative_offset += (-1 if data & 1 else 1) * (data >> 1)
-                target[output_offset:output_offset + length] = \
-                    source[
-                        source_relative_offset:source_relative_offset + length]
+                target[output_offset : output_offset + length] = source[
+                    source_relative_offset : source_relative_offset + length
+                ]
 
                 output_offset += length
                 source_relative_offset += length
@@ -676,7 +680,8 @@ class BPSPatch(object):
         if target_checksum != self.target_checksum:
             raise InvalidPatch(
                 f"target checksum {target_checksum} does not match "
-                f"expected {self.target_checksum}")
+                f"expected {self.target_checksum}"
+            )
 
         return target
 
@@ -684,5 +689,6 @@ class BPSPatch(object):
 """
 end BPS Code
 """
+
 if __name__ == "__main__":
     main()
