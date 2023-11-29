@@ -21,8 +21,6 @@ from serial import Serial
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TEST_ROM_LEN = 40976
-
 STATE_LENGTH = 0x100
 
 BLOCK_SIZE = 8192
@@ -52,6 +50,46 @@ CMD_HALT = ord("h")
 CMD_SEL_GAME = ord("n")
 CMD_RUN_GAME = ord("s")
 
+TEST_ROM_LEN = 40976
+
+FIFO_TESTROM = (
+    b"LQqpN5I=zsKY@UmPDN810s#Y}fJuR=0?-Dj0nh@e0EG$W45<Kx3xx`)1BD1+pa8KAnI-_pz!1>(<_ut^"
+    b"5bzJ60HqI+4dxHX#1PQ+<_ut9r4-Nvr4{fq<_xJTjqpH8|BdiKsUn{;fQ6+LkB)&AkBQ|Iq!p$V@CJ?W"
+    b"K+4eih`|5Q^<d@<t?@vG5s$c$@IZwUV3T2hp%#S~t?@v~LC}w4fYs&}(DLRNOp$<Kr6LLn3JL`yg%zbF"
+    b"lfscDg%qVAlZ%ldg%hP1lb(?og$|_}lZ%lXg$<<~lZ%lZg%713lZ#n^AB7NLsR4}^K!pWLjTS(y7C=fS"
+    b"1(5iq1xQ5(B?W~AXoUt~sUVF8AgQ5^1|XuDpo1U`gsCBq9Dt9Qg`%mKm4PCop@F`Wg1My(ARUCJ3cZ7a"
+    b"jRqjShmY2gsql>lAe#e#kNBmc45|N(2O!E2`l}6qo5YnEjRzp58IS&f8jpgB8;u8}r-2-gmVq6sf`J~7"
+    b"f{7oE2bX(*my3bHtD%z~fPu)X9e|Ugl>oISARUC0_>t(~2+;AD_klr|P=SFi%YwfJf{mpM&=bpmjin3l"
+    b"7?Xm%rVG7_gBWRo7-b8M1|X^Nr;~w*j~9S}56c>WfzFrOfgq29fgz8ff!3EKf`KBBf`KECnt>#bf`KKs"
+    b"O@e{nmkoe{5sylMr^SKomoI>U5|2uNr=x-Umr;O~7a$#kr52+Ugp+@Ti3y;D>&mY}f{~Jg7-@&IiUolH"
+    b"jQ}8x0U)Ibg$N)5g)9Of5c^;Xs=ZKyg#f)#gM|TX000buSb<f7EQ3gjNSH|G0;vIo2c-xgL4&CPjRhc$"
+    b"1&@X~fdC+>4vhgIAnbr>sA#HaKp-I@BB3FnApigX00II81ONaC2nYxuQbA21Qe|OeFIRGDbY%b_MRsL!"
+    b"WO8YCWgtdLMo%DAWpi`@AS3`Fn+$}HnUw$_Q)O;skGPRzZ*^{TkBN`TnII%IFlI45ul9j3kAkIaWo{^O"
+    b"b!ByBDUXR^f+PTj0E7Xc0I>k@28{<G$k6s+NJ>gdN{t5~Xekek2OwYo2nGQO2LJ#F0RjU80|cZAr3%nY"
+    b"r3EPh@Cn8X5Cyp`goO*G1t|gW4dx4_3)wG(&;+Rfg$tz%@Ft}T7<n>;s-*=f2=EB@7qu5D50w|C1t|pZ"
+    b"2-cepfr(77gp-}63C0Q#1-UhZg$k3BnGNO&r3%?Nm&>IJAf<q%1u1~=4v){F7<t}=AoGMw(~lZ}O@Kh~"
+    b"2c-${10V>1sQ`rsr3di*Ogn@C0tEzs0DwGzD1aG&J%D+Dfq;pC3aY)~goOaT;)Ih6gqLxKfdG?yfR~De"
+    b"(E67jg1btNlLL&q0*rwpqk@6Jmnn+n(E4C_*rGs=7eJ!_n&^%IAdUebju1dB0w9wpg6WEt0G$8<od5!z"
+    b"00W%>1f2i{od5=%00-#M=97zyk%g&0r(%Ygy}5<S|L_No&52B&g_lW%sUD31AWS=i4=^w=?*@p0|9($~"
+    b"leJibQ-y+q9y2#TJ2M^tpH^prl?)sV3=9mXjF}!Y2M!!KKdX+30}ca|%a_oZ1`ZY`KL!S)j*UMsJ_C=b"
+    b"pRkc0GcZ0gtBRRFBLfBo3=E@=i5@dEkC3m6fghLOqu`A{Gcz-zh?#yfGd?pjexr_=A2Ts9FfksZj*Fp-"
+    b"u9Lr$u$g}`Fg!3Zf47c>FmR)UKZhNMnHU%t7#IK;qbi4)Y-~sX0001^j)^FIe2<W$i<uBSa5x-z5TlNn"
+    b"#?Bl#aOTFNj+r=Qa5`*eI-`z>7#I+nJAj)&fPpZNkc(e{pHP60Z-{{mr*Mds0Bkt^IBbt+fSYoFkr)_$"
+    b"7#ORHlL>%<2(Jo&fjpZrik~uykF%q)nG6gZ7&tI6qmG$8W^R6VW;~;gl^8e}7#J9*jF~)U4jedeeyfg&"
+    b"1{?;H%a_oZ3>+*>ehdtwj*Wg`d<KuHpRkcUW?+0~tBRR^Mg|NF7#O3Di9BXzkC3m6fj*btm*9_Cft&fO"
+    b"P=bL7qk@?X7%*Tk7!0G1k8gsPg_m-Ii>ZwU3>Yw@u$4S!1`HSgk5z!5V1SKoZeU`QX@Z+@f{|u^W@cui"
+    b"ikbXoW_)I5{G*PIK4xNIkIA3Vi=m6IlfRR&nf_v6cwl1ww~mEi;G=|@e8#}e#>RZ3j*IJ)*PlRufjpC8"
+    b"h=Dw#WQdtQ3=9kmOgN*Cnf7LEcx-0&qmG$)FfcGMGJd0una1w^*2c!hqmGegW_EsVlP7?eFo1zPlTU$@"
+    b"@smJ;k0FAIU|{g0CW4cpg={*bq?ciWf##!Pf|)*IU_1s!e4~zqep;73fuBHulMjP|X15T7iEca?qlTHr"
+    b"#>UqEY(%4uk!EH*7(A0_f}e1Li@kvukCT_snSM?jIB;TqqmF?*lTV9*Jfl*JnJ_Ro7#s`?qmF?*lW&WG"
+    b"Jfm`pfe@2fi-7>6T#J`o7K4F)qh1z+nJ_pU3;+NCqmG#X06YdhW<H~inP6aiW@cu5qmGNAjbdP8Jfo<Y"
+    b"1_nN6W@bL4j*Fp*W`1Cki<7XG4j33b7#OFFod5tnW@bJHJfD!AU|?)^W@csppOA?d063RxjGJ(bg$w|b"
+    b"f0%(dp9GneU|?iycx;cwm(Y_>jfEIIqf(8T008XP*4Eamj)h!ij~#%gAb^i`hL=QymoR~We3N5_r(}kc"
+    b"F@b>wr!s+wY<6IenWLVKJYYNqlWBsJaDtgIFnlmDFdU<ffdG?phJiY_c7}yK7^{SlMpjl<KC6n8bB3>S"
+    b"hKXiA2ABJn0DzHv7&tI|ql%3jFfd?`Nr0bFfRkT>t89XuI1CI13=B8`pMsG905X0|lLeEP4wIccLYbkZ"
+    b"nL<3DkOQ}Wx|u*=aCmTFK%)%1jR1c>9FupipMI}*gMGb$|GNyn|F6GKf`9%4yGI7XN5jd6o+>l-g#"
+)
+
 
 if os.name == "posix":
     from serial.tools.list_ports_posix import comports
@@ -61,7 +99,7 @@ else:
     raise ImportError("Unsupported os: {os.name}")
 
 
-def main():
+def main() -> Everdrive:
     parser = argparse.ArgumentParser()
     parser.add_argument("rom", nargs="?", help="Load this rom")
     parser.add_argument("-p", "--patch", help="Apply .ips patch to rom first")
@@ -84,6 +122,7 @@ def main():
         everdrive.load_game(rom)
     elif args.print_state:
         everdrive.print_state()
+    return everdrive
 
 
 def to_string(data: bytearray):
@@ -459,7 +498,7 @@ def apply_ips_patch(rom: bytearray, patch: bytes, sha1sum: str = "") -> bytearra
 
 def get_test_rom() -> bytearray:
     rom = bytearray(TEST_ROM_LEN)
-    patch = base64.b85decode(fifo_testrom)
+    patch = base64.b85decode(FIFO_TESTROM)
     bps_patch = BPSPatch(patch)
     return bps_patch.patch_rom(rom)
 
@@ -487,40 +526,6 @@ def send_fifo(everdrive: Everdrive, *numbers):
     payload = bytearray(n & 0xFF for n in numbers)
     everdrive.write_fifo(payload)
 
-
-TEST_ROM_LEN = 40976
-
-fifo_testrom = (
-    b"LQqpN5I=zsKY@UmPDN810s#Y}fYqf9&;+Fp@H6HYsVj}}KuQ0N@Ia{|pSXpk4Udk24v&fD45SXG4e$ny"
-    b"@IcDY`iQ{)(Dh*E7p?I?g$j?jeSz>mg$rQj7pVY+6@?b9@j%Hz&<w5cK;{+D^5zyyRDfWq0gV<wg#}8D"
-    b"7C@~QKuRVBkoctqNJR!E1%(A@g$7_qib$A9<^rh!g$Jo1jRqj8h>Zpyq7SM6jRzpg5c-!WfPtZpg2j@c"
-    b"fgsR<r4Nk<Af*tE2Oy%Fm#TpgkAi^`kD7rKkAjsHjRzp9A&>u$3V?;8qnF=}3LxQum&lXtfw7l@feVlB"
-    b"fg+=;fxnl@l@=i3fu$9r_>--H&6lpV7a-w*rU<=+fsF<ry@-#-p{ekV2Oy;h@EDU{fxV^)y^DbuX@?kP"
-    b"35^CIsqv2lfRzA^1t5(Dj}L%pfB+z=4vhgIAZUPSsA#HaKp-I@BB3FnApigf2nYxuQ)O;sAS3`FV{dhC"
-    b"bRZ-EAW~&vWFRCoFlI45uMC5MFpq+zY-MgJadl;NWhsw|DS;#ah5&>Cpa8J|@CJ<sAjr`6U`R?zN=l6f"
-    b"AZRHMjRzoLr3lbPr3EPh@Ce2U5Co|Pg$bnvDFN^d<_V<<$p_E`sQ`rur3vsMrjH(g#R%{S_71fUDG!wn"
-    b"r3EPj@CeqMxQR?zf|s40#t0AusRM-wlaQGV<_M(-$pn+Xu?VFR3JMAe1rmi0r4y47fRPl14W$p0iy49t"
-    b"g$$(yDS+?=r3fIEf~f$72c-w_{7mqH0DwGzM1V|y3aY)0f`tIRj)H{&Yybdw*rGs=7eJ!_n&^%IAdUeb"
-    b"ju1dB0w62`AQ1bCl>nUp0i6H>od5%!00f-?1)Tr}od5^u(B_jifR|f`fdG$!fdG?&iRjS!m-4#?hm%)^"
-    b"yH<vQBcp<Wz?W%=jnMk3Kc`BFnY~wo$^Y;NkIjipJcE}5g{dBm0U%89fe$b+Fz-Nyf&T_$hLg33fTV(h"
-    b"fgUqAKRYuX0G}Fhf|U#$3=9kmr;M2%GY1YFI6te7i31J;lgpRTnFbCPCO-xSqmGR~Fg^p1sh_Zs9y2gL"
-    b"GpmZ3KO+MM1`G_Nj)@*KGmnt3i-8}P-=pA-KQl8kqllS)Gc!IjGk&9vnIAJTFfcJ5qmGNAi>{Nuldze8"
-    b"F)%zZF@Lv?g)nfVgg=KJhnW}{7#J7;7^5nOiEM00lShZ2Ooxdme0-0Pql=jkJa9N1co3tGna0i>IB@31"
-    b"qmG$4WN<ocW;&yei5M6Vn>&D;K!AZTkC2OBfS*u+k8g;945x62l>lrw{y1!pXMme>fRPv&ei#_5ijxU|"
-    b"fe5b(fPp-lF^ZouijT9SvY8AF92ht-Fr$u{JZ5fwc4j=Ij+GcV7#J8Br;M3AW)2)UaDJ<fi3S`7lgpRT"
-    b"nG75(OnwXuqmGS!V0;FTsh_ZsJZ4~gW~+*sentii3>X-rj)^>GW{;4si-A6u-<RNzS%I7Rt5AZ02&00T"
-    b"3>YwAFc=J@j*oAGmxY&df{Uq*1`HT5qp+1cW(Eux0FPCGpJ0HEZf;;=lWBsRaDtI$er9H7ql%gQW@db5"
-    b"X8fa$jXq{#V2{b4(2Jpqu9Lr$u$lg1V0d6+{<n^WVBn*KnS92;&c?=kqmGN~lh>a>fPp-dVTge|qhyGg"
-    b"J`4;D3`{tqj+ypmY<O&D_M?uOcrY+9Ffx9lj+w^p{?^9E#-omrW@dJNZj&c~moR{VJd;m>lkt;4f{!7B"
-    b"iC|#xqb7orp@nQZqokK%f`R6vVuG1IVqiQ5Mtq}=g??I>J%OJ<fs+q|fo8W5gNbfD7^8-n#>U3h{%k~}"
-    b"j*(_&JQzHaXM&$_f{VR@7>|>e(3yTt95`@dexr_oJd;n0fjpy9i<vMmI2arZ45N;LJd<yWfjpyfi-8c6"
-    b"S&M-Hqg;!ZX_kS0qiU9!FgP3x0001^j+p=eJO(~yKBJDAU|@V^W@db&j*Fp<VqjuCqo|n%20mtHW<H~i"
-    b"i=l~TeqfV}ldzQz7#KVl7^jS#002H_W<CZypOBqkU~G0~W@Z4Nkck)oIG1aTn{bSU3;>gVn1MK-1euj!"
-    b"U}S7~Y>&m4(34M%g%~`eQjM7a0PNP**4C?zg<NKj9e}4GfRA;Cmqdh@FoA)5lVgUbWQLP5fq@36GJ%O~"
-    b"c3_X0qn?dCU_1tsX@Zk*f|)Qdd@wLD9HWkb0F!fufjYN#hJ`#BtAvq8R#sL%tBR9zhOcsliDo_qm;09h"
-    b"fRTI{I52#pij5pFFkp{KfS*u+lV5_XY=WIQ3=9Sg3^)Lvf{_3KGJZ^x1(TN!lbt+5nW3ebLOh?41Gj&="
-    b"nLuE0cyM4qqYS%^0DnFllXtJ5ey?|feZ7JIy9~bnufI=%fBplzM+U-2;zCt>PBw!y"
-)
 
 """
 BPS Code from https://github.com/mgius/python-bpspatcher
@@ -691,4 +696,4 @@ end BPS Code
 """
 
 if __name__ == "__main__":
-    main()
+    everdrive = main()
