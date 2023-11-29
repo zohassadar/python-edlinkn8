@@ -102,15 +102,15 @@ else:
 def main() -> Everdrive:
     parser = argparse.ArgumentParser()
     parser.add_argument("rom", nargs="?", help="Load this rom")
-    parser.add_argument("-p", "--patch", help="Apply .ips patch to rom first")
+    parser.add_argument("-p", "--patch", help="Apply .ips/bps patch to rom first")
     parser.add_argument("-t", "--test", action="store_true", help="Launch test rom")
-    parser.add_argument("-s", "--sha1sum", help="sha1sum to validate patch", default="")
+    parser.add_argument("-s", "--sha1sum", help="sha1sum to validate patch (ips only)", default="")
     parser.add_argument("-S", "--print-state", action="store_true")
     args = parser.parse_args()
     everdrive = Everdrive()
     if args.patch:
         rom = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
-        rom = NesRom(rom=rom, name=args.patch.replace(".ips", ".nes"))
+        rom = NesRom(rom=rom, name=args.patch.replace(".ips", ".nes").replace(".bps", ".nes"))
         everdrive.load_game(rom)
     elif args.rom:
         rom = NesRom.from_file(args.rom)
@@ -504,12 +504,16 @@ def get_test_rom() -> bytearray:
 
 
 def open_rom_with_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> bytearray:
-    patch = open(patch_file, "rb").read()
-    if patch[:5] != b"PATCH":
-        print(f"{patch_file} doesn't look like a patch", file=sys.stderr)
+    try:
+        patch = open(patch_file, "rb").read()
+        rom = bytearray(open(rom_file, "rb").read())
+        if patch[:5] == b"PATCH":
+            return apply_ips_patch(rom, patch, sha1sum)
+        bps = BPSPatch(patch)
+        return bps.patch_rom(rom)
+    except Exception as exc:
+        print(f"{patch_file} doesn't look like a patch: {exc!s}", file=sys.stderr)
         sys.exit(1)
-    rom = bytearray(open(rom_file, "rb").read())
-    return apply_ips_patch(rom, patch, sha1sum)
 
 
 def count_bytes(everdrive: Everdrive):
