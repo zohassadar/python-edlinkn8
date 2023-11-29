@@ -13,6 +13,7 @@ import io
 import logging
 import os
 import pathlib
+import re
 import sys
 import zlib
 
@@ -113,10 +114,11 @@ def main() -> Everdrive:
     args = parser.parse_args()
     everdrive = Everdrive()
     if args.patch:
+        if not args.rom:
+            print(f"No rom specified", file=sys.stderr)
+            sys.exit(1)
         rom = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
-        rom = NesRom(
-            rom=rom, name=args.patch.replace(".ips", ".nes").replace(".bps", ".nes")
-        )
+        rom = NesRom(rom=rom, name=re.sub(r"\.[bi]ps", ".nes", rom.patch))
         everdrive.load_game(rom)
     elif args.rom:
         rom = NesRom.from_file(args.rom)
@@ -478,6 +480,7 @@ class NesRom:
 
 
 def apply_ips_patch(rom: bytearray, patch: bytes, sha1sum: str = "") -> bytearray:
+    # todo: error handling with invalid patches
     ptr = 5
     while ptr < len(patch):
         offset = int.from_bytes(patch[ptr : ptr + 3], "big")
@@ -516,7 +519,7 @@ def open_rom_with_patch(rom_file: str, patch_file: str, sha1sum: str = "") -> by
         if patch[:5] == b"PATCH":
             return apply_ips_patch(rom, patch, sha1sum)
         if sha1sum:
-            logger.info(f"sha1sum ignored")
+            logger.info(f"sha1sum ignored for bps patch")
         return BPSPatch(patch).patch_rom(rom)
     except Exception as exc:
         print(f"{patch_file} doesn't look like a patch: {exc!s}", file=sys.stderr)
