@@ -28,6 +28,8 @@ BLOCK_SIZE = 8192
 ACK_BLOCK_SIZE = 1024
 
 FAT_READ = 0x01
+FAT_WRITE = 0x02
+FAT_CREATE_ALWAYS = 0x08
 
 CMD_STATUS = 0x10
 CMD_MEM_RD = 0x19
@@ -36,8 +38,10 @@ CMD_FPG_USB = 0x1E
 CMD_FPG_SDC = 0x1F
 CMD_F_FOPN = 0xC9
 CMD_F_FRD = 0xCA
+CMD_F_FWR = 0xCC
 CMD_F_FCLOSE = 0xCE
 CMD_F_FINFO = 0xD0
+CMD_F_DIR_MK = 0xD2
 
 ADDR_SSR = 0x1802000
 ADDR_FIFO = 0x1810000
@@ -104,13 +108,39 @@ else:
 
 def main() -> Everdrive:
     parser = argparse.ArgumentParser()
-    parser.add_argument("rom", nargs="?", help="Load this rom")
-    parser.add_argument("-p", "--patch", help="Apply .ips/bps patch to rom first")
-    parser.add_argument("-t", "--test", action="store_true", help="Launch test rom")
     parser.add_argument(
-        "-s", "--sha1sum", help="sha1sum to validate patch (ips only)", default=""
+        "rom",
+        nargs="?",
+        help="Load this rom",
     )
-    parser.add_argument("-S", "--print-state", action="store_true")
+    parser.add_argument(
+        "-p",
+        "--patch",
+        help="Apply .ips/bps patch to rom first",
+    )
+    parser.add_argument(
+        "-t",
+        "--test",
+        action="store_true",
+        help="Launch test rom",
+    )
+    parser.add_argument(
+        "-s",
+        "--save",
+        nargs="?",
+        const="",
+        default=None,
+        help="Save to sd card.  Provide optional path to save in.",
+    )
+    parser.add_argument(
+        "--sha1sum",
+        default="",
+        help="sha1sum to validate patch (ips only)",
+    )
+    parser.add_argument(
+        "--print-state",
+        action="store_true",
+    )
     args = parser.parse_args()
     everdrive = Everdrive()
     if args.patch:
@@ -118,11 +148,12 @@ def main() -> Everdrive:
             print(f"No rom specified", file=sys.stderr)
             sys.exit(1)
         rom = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
-        rom = NesRom(rom=rom, name=re.sub(r"\.[bi]ps", ".nes", rom.patch))
-        everdrive.load_game(rom)
+        romname = pathlib.Path(args.patch).name
+        rom = NesRom(rom=rom, name=re.sub(r"\.[bi]ps", ".nes", romname))
+        everdrive.load_game(rom, save=args.save)
     elif args.rom:
         rom = NesRom.from_file(args.rom)
-        everdrive.load_game(rom)
+        everdrive.load_game(rom, save=args.save)
     elif args.test:
         print("Launching fifo test rom")
         rom = get_test_rom()
@@ -270,7 +301,57 @@ class Everdrive:
         logger.debug(f"command: {data.hex()}")
         self.write_fifo(data)
 
-    def load_game(self, rom: NesRom):
+    def write_file(self, file: bytearray):
+        self.transmit_command(CMD_F_FWR)
+        self.transmit_32(len(file))
+        self.transmit_data_ack(file)
+        self.check_status()
+
+    def dir_make(self, path: str):
+        self.transmit_command(CMD_F_DIR_MK)
+        self.transmit_string(path)
+        response = self.get_status()
+        if response and response != 8:
+            self.check_status()
+
+    def launch_game(self, rompath: str):
+        if "/" not in rompath:
+            rompath = "/" + rompath
+        logger.info(f"Attempting to launch {rompath}")
+        self.select_game(rompath)
+        self.command(CMD_RUN_GAME)
+
+    def save_and_load(self, rom: bytearray, romname: str, rompath: str):
+        parts = pathlib.Path(rompath).parts
+        for dir_ in ["/".join(parts[: i + 1]) for i in range(len(parts))]:
+            """
+            rompath = "path/with/uncreated/directories"
+            self.dir_make('path')
+            self.dir_make('path/with')
+            self.dir_make('path/with/uncreated')
+            self.dir_make('path/with/uncreated/directories')
+            """
+            self.dir_make(dir_)
+        fullpath = "/".join((pathlib.Path(rompath) / romname).parts)
+        logger.info(f"Saving game as: {fullpath}")
+        self.open_file(fullpath, FAT_WRITE | FAT_CREATE_ALWAYS)
+        self.write_file(rom)
+        self.close_file()
+        self.launch_game(fullpath)
+
+    def select_game(self, rompath: str) -> int:
+        self.command(CMD_SEL_GAME)
+        self.transmit_string_fifo(rompath)
+        response = self.receive_8()
+        if response:
+            raise Exception(f"Game select error 0x{response:02x}")
+        map_index = self.receive_16()
+        return map_index
+
+    def load_game(self, rom: NesRom, save: str | None = None):
+        if save is not None:
+            self.save_and_load(rom.rom, rom.name, save)
+            return
         logger.debug(f"Sending command to select game")
         self.command(CMD_SEL_GAME)
 
