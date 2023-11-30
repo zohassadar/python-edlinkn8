@@ -4,6 +4,7 @@ This provides some functionality of the edlink-n8 portion of [krikzz/EDN8-PRO](h
 
 * Launch rom
 * Apply ips/bps patch when launching rom
+* Optionally save rom to SD card when launching
 * Use as module to interact with fifo queue
 
 ## No Install
