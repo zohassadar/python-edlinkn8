@@ -380,9 +380,6 @@ class Everdrive:
         return response & 0xFF
 
     def transmit_data_ack(self, data):
-        """
-        unused.  set up along fpg_init_direct
-        """
         length = len(data)
         offset = 0
         while length > 0:
