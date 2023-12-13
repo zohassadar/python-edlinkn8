@@ -54,6 +54,11 @@ CMD_HALT = ord("h")
 CMD_SEL_GAME = ord("n")
 CMD_RUN_GAME = ord("s")
 
+class EverdriveNotFound(Exception):
+    ...
+
+class EverdriveNoResponse(Exception):
+    ...
 
 if os.name == "posix":
     from serial.tools.list_ports_posix import comports
@@ -134,7 +139,7 @@ class Everdrive:
                 logger.info(f"Everdrive found on {port.device}")
                 self.port = Serial(port=port.device, baudrate=BAUD_RATE, timeout=0.5)
                 return
-        raise RuntimeError(f"Unable to locate everdrive")
+        raise EverdriveNotFound
 
     def transmit_data(
         self,
@@ -187,7 +192,10 @@ class Everdrive:
         self.transmit_data(data)
 
     def receive_8(self):
-        result = self.receive_data(1).pop()
+        result = self.receive_data(1)
+        if not result:
+            raise EverdriveNoResponse
+        result = result.pop()
         logger.debug(f"receive_8: {result:02x}")
         return result
 
@@ -712,4 +720,14 @@ end BPS Code
 """
 
 if __name__ == "__main__":
-    everdrive = main()
+    try:
+        everdrive = main()
+    except EverdriveNotFound:
+        print(f"Everdrive not found", file=sys.stderr)
+        sys.exit(1)
+    except EverdriveNoResponse:
+        print(f"Everdrive not responding", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        print(f"Error: {exc!s}", file=sys.stderr)
+        sys.exit(1)
