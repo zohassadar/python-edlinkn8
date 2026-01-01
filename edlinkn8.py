@@ -18,7 +18,7 @@ import zlib
 
 from serial import Serial
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 STATE_LENGTH = 0x100
@@ -54,11 +54,12 @@ CMD_HALT = ord("h")
 CMD_SEL_GAME = ord("n")
 CMD_RUN_GAME = ord("s")
 
-class EverdriveNotFound(Exception):
-    ...
 
-class EverdriveNoResponse(Exception):
-    ...
+class EverdriveNotFound(Exception): ...
+
+
+class EverdriveNoResponse(Exception): ...
+
 
 if os.name == "posix":
     from serial.tools.list_ports_posix import comports
@@ -68,7 +69,7 @@ else:
     raise ImportError("Unsupported os: {os.name}")
 
 
-def main() -> Everdrive:
+def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "rom",
@@ -98,21 +99,32 @@ def main() -> Everdrive:
         action="store_true",
     )
     args = parser.parse_args()
-    everdrive = Everdrive()
-    if args.patch:
-        if not args.rom:
-            print(f"No rom specified", file=sys.stderr)
-            sys.exit(1)
-        rom = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
-        romname = pathlib.Path(args.patch).name
-        rom = NesRom(rom=rom, name=re.sub(r"\.[bi]ps", ".nes", romname))
-        everdrive.load_game(rom, save=args.save)
-    elif args.rom:
-        rom = NesRom.from_file(args.rom)
-        everdrive.load_game(rom, save=args.save)
-    elif args.print_state:
-        everdrive.print_state()
-    return everdrive
+    try:
+        everdrive = Everdrive()
+    except EverdriveNotFound:
+        logger.error("Everdrive not found")
+        sys.exit(1)
+    rom = None
+    if args.rom:
+        logger.info(f"launching {args.rom}")
+        if args.patch:
+            logger.info(f"applying {args.patch}")
+            rombytes = open_rom_with_patch(args.rom, args.patch, args.sha1sum)
+            romname = pathlib.Path(args.patch).name
+            rom = NesRom(rom=rombytes, name=re.sub(r"\.[bi]ps", ".nes", romname))
+        else:
+            rom = NesRom.from_file(args.rom)
+
+    try:
+        if args.print_state or not rom:
+            everdrive.print_state()
+            rom = None
+        if rom:
+            everdrive.load_game(rom, save=args.save)
+    except EverdriveNoResponse:
+        logger.error("Everdrive timed out")
+        sys.exit(1)
+    return 0
 
 
 def to_string(data: bytearray):
@@ -136,14 +148,14 @@ class Everdrive:
         for port in comports():
             logger.debug(f"Found {port.device}: {port.description}")
             if port.description == IDENTIFIER:
-                logger.info(f"Everdrive found on {port.device}")
+                logger.debug(f"Everdrive found on {port.device}")
                 self.port = Serial(port=port.device, baudrate=BAUD_RATE, timeout=0.5)
                 return
         raise EverdriveNotFound
 
     def transmit_data(
         self,
-        data: bytes,
+        data: bytes | bytearray,
         offset: int = 0,
         length: int = 0,
     ):
@@ -271,7 +283,6 @@ class Everdrive:
     def launch_game(self, rompath: str):
         if "/" not in rompath:
             rompath = "/" + rompath
-        logger.info(f"Attempting to launch {rompath}")
         self.select_game(rompath)
         self.command(CMD_RUN_GAME)
 
@@ -720,14 +731,4 @@ end BPS Code
 """
 
 if __name__ == "__main__":
-    try:
-        everdrive = main()
-    except EverdriveNotFound:
-        print(f"Everdrive not found", file=sys.stderr)
-        sys.exit(1)
-    except EverdriveNoResponse:
-        print(f"Everdrive not responding", file=sys.stderr)
-        sys.exit(1)
-    except Exception as exc:
-        print(f"Error: {exc!s}", file=sys.stderr)
-        sys.exit(1)
+    sys.exit(main())
