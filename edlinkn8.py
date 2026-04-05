@@ -144,12 +144,30 @@ class Everdrive:
         logger.debug(f"Initializing {type(self).__name__}()")
         self.set_serial_port(index=index)
 
-    def set_serial_port(self, index=0):
-        ports = [p for p in comports() if p.description == IDENTIFIER]
+    def set_serial_port(self, index=None):
+        ports = []
+        for port in comports():
+            if index is not None and not port.device == f"/dev/ttyACM{index}":
+                continue
+            if port.description != IDENTIFIER:
+                continue
+            ports.append(port)
+
         if not ports:
             raise EverdriveNotFound
-        self.port = Serial(port=ports[index].device, baudrate=BAUD_RATE, timeout=0.5)
-        return
+
+        for port in ports:
+            try:
+                self.port = Serial(
+                    port=port.device,
+                    baudrate=BAUD_RATE,
+                    timeout=0.5,
+                    exclusive=True,
+                )
+                return
+            except Exception as exc:
+                logger.error(f"Exception trying to connect to {port.device}: {exc}")
+        raise EverdriveNotFound
 
     def transmit_data(
         self,
