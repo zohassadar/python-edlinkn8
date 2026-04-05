@@ -140,18 +140,16 @@ class FileInfo:
 
 
 class Everdrive:
-    def __init__(self):
+    def __init__(self, index=0):
         logger.debug(f"Initializing {type(self).__name__}()")
-        self.set_serial_port()
+        self.set_serial_port(index=index)
 
-    def set_serial_port(self):
-        for port in comports():
-            logger.debug(f"Found {port.device}: {port.description}")
-            if port.description == IDENTIFIER:
-                logger.debug(f"Everdrive found on {port.device}")
-                self.port = Serial(port=port.device, baudrate=BAUD_RATE, timeout=0.5)
-                return
-        raise EverdriveNotFound
+    def set_serial_port(self, index=0):
+        ports = [p for p in comports() if p.description == IDENTIFIER]
+        if not ports:
+            raise EverdriveNotFound
+        self.port = Serial(port=ports[index].device, baudrate=BAUD_RATE, timeout=0.5)
+        return
 
     def transmit_data(
         self,
