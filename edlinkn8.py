@@ -18,7 +18,6 @@ import zlib
 
 from serial import Serial
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 STATE_LENGTH = 0x100
@@ -140,14 +139,24 @@ class FileInfo:
 
 
 class Everdrive:
-    def __init__(self, index=0):
-        logger.debug(f"Initializing {type(self).__name__}()")
-        self.set_serial_port(index=index)
+    @classmethod
+    def list_ports(cls):
+        everdrives = []
+        for port in comports():
+            if port.description != IDENTIFIER:
+                continue
+            everdrives.append(port)
 
-    def set_serial_port(self, index=None):
+        everdrives.sort(key=lambda p: p.device)
+        return {i: p.device for i, p in enumerate(everdrives)}
+
+    def __init__(self, index: int | None = None, serial: str | None = None):
+        logger.debug(f"Initializing {type(self).__name__}()")
         ports = []
         for port in comports():
             if index is not None and not port.device == f"/dev/ttyACM{index}":
+                continue
+            if serial is not None and not port.device == serial:
                 continue
             if port.description != IDENTIFIER:
                 continue
@@ -168,6 +177,13 @@ class Everdrive:
             except Exception as exc:
                 logger.error(f"Exception trying to connect to {port.device}: {exc}")
         raise EverdriveNotFound
+
+    def launch_rom_from_file(
+        self,
+        file: str | pathlib.Path,
+    ):
+        rom = NesRom.from_file(file)
+        self.load_game(rom)
 
     def transmit_data(
         self,
